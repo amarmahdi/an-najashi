@@ -29,6 +29,7 @@ import SilenceOverlay from '../components/prayer/SilenceOverlay';
 import ShadowCard from '../components/common/ShadowCard';
 import MosqueCard from '../components/prayer/MosqueCard';
 import ConnectionDebugger from '../components/debug/ConnectionDebugger';
+import TimeDebugger from '../components/debug/TimeDebugger';
 
 // Import utility functions
 import { normalizeSize, scaleFontSize, isSmallScreen } from '../utils/SizeUtils';
@@ -42,9 +43,9 @@ const HomeScreen: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const pulseAnim = React.useRef(new Animated.Value(1)).current;
     
-    // For demonstration - time simulation
+    // For demonstration - time simulation (disabled by default)
     const [showTimeControls, setShowTimeControls] = useState(false);
-    const [simulatedHour, setSimulatedHour] = useState<number | null>(null);
+    const [simulatedHour, setSimulatedHour] = useState<number | null>(null); // null means use real time
     const [autoSimulation, setAutoSimulation] = useState(false);
     const [simulationSpeed, setSimulationSpeed] = useState(200); // ms per hour change
     
@@ -180,6 +181,11 @@ const HomeScreen: React.FC = () => {
     useEffect(() => {
         const initializeData = async () => {
             try {
+                // Force reset any time simulation on startup
+                setSimulatedHour(null);
+                setAutoSimulation(false);
+                setShowTimeControls(false);
+                
                 await prayerDataService.initialize();
                 const data = await prayerDataService.getPrayerData();
                 setPrayerData(data);
@@ -249,13 +255,14 @@ const HomeScreen: React.FC = () => {
     useEffect(() => {
         let interval: NodeJS.Timeout | null = null;
         
+        // Only run simulation if explicitly enabled
         if (autoSimulation) {
             interval = setInterval(() => {
                 setSimulatedHour(prevHour => {
-                    if (prevHour === null) return 0;
-                    return (prevHour + 1) % 24; // Loop through 0-23 hours
+                    if (prevHour === null) return new Date().getHours();
+                    return (prevHour + 1) % 24;
                 });
-            }, simulationSpeed); // Adjust hour every interval
+            }, simulationSpeed);
         }
         
         return () => {
@@ -269,7 +276,10 @@ const HomeScreen: React.FC = () => {
     // Update time every second and check for prayer time updates
     useEffect(() => {
         const timer = setInterval(async () => {
+            // Always get the real device time
             const now = new Date();
+            
+            // Update with the real time (or simulated time for testing only)
             setCurrentTime(now);
             
             // Check if we need to refresh prayer times (e.g., at midnight)
@@ -339,22 +349,7 @@ const HomeScreen: React.FC = () => {
                 timersRef.current.forEach(timer => clearTimeout(timer));
             };
         }
-    }, [prayerData, checkPrayerTimes, CHECK_INTERVAL_MS]);
-    
-    // Loading state or fallback if prayer data isn't available
-    if (loading || !prayerData) {
-        return (
-            <SafeAreaView style={styles.container}>
-                <StatusBar hidden />
-                <View style={styles.backgroundGradient}>
-                    <CustomGradient colors={smoothGradientColors} />
-                </View>
-                <View style={styles.loadingContainer}>
-                    <Text style={styles.loadingText}>Loading prayer times...</Text>
-                </View>
-            </SafeAreaView>
-        );
-    }
+    }, [prayerData, checkPrayerTimes, CHECK_INTERVAL_MS, timersRef]);
     
     // Get data from prayer service
     const { prayerTimes, iqamahTimes, hijriDate, nextPrayer } = prayerData;
@@ -617,6 +612,14 @@ const HomeScreen: React.FC = () => {
             {/* Beautiful gradient background with dynamic colors */}
             <View style={styles.backgroundGradient}>
                 <CustomGradient colors={smoothGradientColors} />
+                
+                {/* Debug component to show device time vs app time */}
+                <TimeDebugger 
+                    actualTime={new Date()} 
+                    appTime={currentTime} 
+                    simulatedHour={simulatedHour}
+                    isSimulating={simulatedHour !== null}
+                />
                 
                 {/* Stars with static effect - only visible at night */}
                 {isNighttime && <StarBackground />}
