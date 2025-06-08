@@ -1,11 +1,12 @@
-import { 
-  PrayerTimes, 
-  IqamahTimes, 
-  calculatePrayerTimes, 
-  calculateIqamahTimes, 
+import {
+  PrayerTimes,
+  IqamahTimes,
+  calculatePrayerTimes,
+  calculateIqamahTimes,
   getNextPrayer,
   calculateHijriDate,
-  PrayerTimesSettings
+  PrayerTimesSettings,
+  DEFAULT_SETTINGS,
 } from './prayerTimes';
 import locationService from './LocationSettings';
 import mockAsyncStorage from './MockAsyncStorage';
@@ -38,7 +39,7 @@ const DEFAULT_IQAMAH_OFFSETS = {
   dhuhr: 10,
   asr: 10,
   maghrib: 5,
-  isha: 15
+  isha: 15,
 };
 
 // Storage key for iqamah offsets
@@ -54,11 +55,17 @@ class PrayerDataService {
   private iqamahOffsets = DEFAULT_IQAMAH_OFFSETS;
   private initialized = false;
   private storageAvailable = true;
-  
+
   private constructor() {
-    this.prayerTimesSettings = locationService.getSettings();
+    // Create prayer settings using default values and location coordinates
+    const location = locationService.getLocation();
+    this.prayerTimesSettings = {
+      ...DEFAULT_SETTINGS,
+      latitude: location.latitude,
+      longitude: location.longitude,
+    };
   }
-  
+
   /**
    * Get the singleton instance
    */
@@ -68,62 +75,81 @@ class PrayerDataService {
     }
     return PrayerDataService.instance;
   }
-  
+
   /**
    * Initialize the service
    */
   public async initialize(): Promise<void> {
-    if (this.initialized) return;
-    
+    if (this.initialized) {return;}
+
     try {
+      // Get location
+      const location = locationService.getLocation();
+      // Setup prayer settings with location
+      this.prayerTimesSettings = {
+        ...DEFAULT_SETTINGS,
+        latitude: location.latitude,
+        longitude: location.longitude,
+      };
+
       // Load iqamah offsets from storage
       const offsetsJson = await AsyncStorage.getItem(STORAGE_KEY_IQAMAH);
-      
+
       if (offsetsJson) {
         this.iqamahOffsets = JSON.parse(offsetsJson);
       }
-      
-      // Get settings from location service
-      this.prayerTimesSettings = locationService.getSettings();
-      
+
+      // Settings already initialized above
+
       // Calculate initial prayer data
       await this.refreshPrayerData();
-      
+
       this.initialized = true;
     } catch (error) {
       console.error('Error initializing prayer data service:', error);
       this.storageAvailable = false;
-      
+
       // Use defaults if initialization fails
-      this.prayerTimesSettings = locationService.getSettings();
+      const location = locationService.getLocation();
+      this.prayerTimesSettings = {
+        ...DEFAULT_SETTINGS,
+        latitude: location.latitude,
+        longitude: location.longitude,
+      };
       this.iqamahOffsets = { ...DEFAULT_IQAMAH_OFFSETS };
-      
+
       // Calculate initial prayer data with defaults
       await this.refreshPrayerData();
-      
+
       this.initialized = true;
     }
   }
-  
+
   /**
    * Refresh prayer data based on current settings
    */
   public async refreshPrayerData(forceRefresh = false): Promise<PrayerData> {
-    // Check if settings have changed
-    const currentSettings = locationService.getSettings();
-    
+    // Get current location
+    const location = locationService.getLocation();
+    // Create current settings using location and default prayer settings
+    const currentSettings = {
+      ...this.prayerTimesSettings,
+      latitude: location.latitude,
+      longitude: location.longitude,
+    };
+
     // Log the location and settings being used
     console.log('PRAYER LOCATION DATA:', {
       latitude: currentSettings.latitude,
       longitude: currentSettings.longitude,
       timezone: currentSettings.timezone,
       method: currentSettings.method,
-      adjustments: currentSettings.adjustments
+      adjustments: currentSettings.adjustments,
     });
-    
+
     // If not initialized, force refresh
-    if (!this.initialized) forceRefresh = true;
-    
+    if (!this.initialized) {forceRefresh = true;}
+
     // If prayer data doesn't exist or settings have changed, recalculate
     if (
       forceRefresh ||
@@ -132,36 +158,36 @@ class PrayerDataService {
       this.prayerTimesForDifferentDate(new Date())
     ) {
       this.prayerTimesSettings = currentSettings;
-      
+
       // Set timezone from device if not set
       if (this.prayerTimesSettings.timezone === undefined || this.prayerTimesSettings.timezone === null) {
         this.prayerTimesSettings.timezone = -new Date().getTimezoneOffset() / 60;
       }
-      
+
       // Calculate prayer and iqamah times for current date
       const date = new Date();
       const prayerTimes = calculatePrayerTimes(date, this.prayerTimesSettings);
       const iqamahTimes = calculateIqamahTimes(prayerTimes, this.iqamahOffsets);
-      
+
       // Calculate Hijri date
       const hijriDate = calculateHijriDate(date);
-      
+
       // Determine next prayer
-      const nextPrayer = getNextPrayer(prayerTimes);
-      
+      const nextPrayer = getNextPrayer(prayerTimes, this.prayerTimesSettings);
+
       // Update prayer data
       this.prayerData = {
         prayerTimes,
         iqamahTimes,
         hijriDate,
-        nextPrayer
+        nextPrayer,
       };
     }
-    
+
     // This non-null assertion is safe because we just calculated the prayer data if it was null
     return this.prayerData!;
   }
-  
+
   /**
    * Get current prayer data
    */
@@ -169,35 +195,35 @@ class PrayerDataService {
     if (!this.initialized) {
       await this.initialize();
     }
-    
+
     if (!this.prayerData) {
       await this.refreshPrayerData(true);
     }
-    
+
     // This non-null assertion is safe because we just calculated the prayer data if it was null
     return this.prayerData!;
   }
-  
+
   /**
    * Update iqamah offsets
    */
-  public async updateIqamahOffsets(offsets: { 
-    fajr: number; 
-    dhuhr: number; 
-    asr: number; 
-    maghrib: number; 
-    isha: number 
+  public async updateIqamahOffsets(offsets: {
+    fajr: number;
+    dhuhr: number;
+    asr: number;
+    maghrib: number;
+    isha: number
   }): Promise<void> {
     this.iqamahOffsets = offsets;
-    
+
     // Recalculate iqamah times with new offsets
     if (this.prayerData) {
       this.prayerData.iqamahTimes = calculateIqamahTimes(
-        this.prayerData.prayerTimes, 
+        this.prayerData.prayerTimes,
         this.iqamahOffsets
       );
     }
-    
+
     // Store updated offsets if storage is available
     if (this.storageAvailable) {
       try {
@@ -208,20 +234,20 @@ class PrayerDataService {
       }
     }
   }
-  
+
   /**
    * Get iqamah offsets
    */
-  public getIqamahOffsets(): { 
-    fajr: number; 
-    dhuhr: number; 
-    asr: number; 
-    maghrib: number; 
-    isha: number 
+  public getIqamahOffsets(): {
+    fajr: number;
+    dhuhr: number;
+    asr: number;
+    maghrib: number;
+    isha: number
   } {
     return { ...this.iqamahOffsets };
   }
-  
+
   /**
    * Calculate prayer times for a specific date
    */
@@ -230,51 +256,51 @@ class PrayerDataService {
     const iqamahTimes = calculateIqamahTimes(prayerTimes, this.iqamahOffsets);
     const hijriDate = calculateHijriDate(date);
     const nextPrayer = getNextPrayer(prayerTimes);
-    
+
     return {
       prayerTimes,
       iqamahTimes,
       hijriDate,
-      nextPrayer
+      nextPrayer,
     };
   }
-  
+
   /**
    * Get prayer data for a week
    */
   public getPrayerTimesForWeek(startDate = new Date()): PrayerData[] {
     const result: PrayerData[] = [];
-    
+
     // Calculate prayer times for each day of the week
     for (let i = 0; i < 7; i++) {
       const date = new Date(startDate);
       date.setDate(date.getDate() + i);
-      
+
       result.push(this.calculatePrayerTimesForDate(date));
     }
-    
+
     return result;
   }
-  
+
   /**
    * Get prayer data for a month
    */
   public getPrayerTimesForMonth(startDate = new Date()): PrayerData[] {
     const result: PrayerData[] = [];
-    
+
     // Calculate prayer times for each day of the month
     const year = startDate.getFullYear();
     const month = startDate.getMonth();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    
+
     for (let i = 1; i <= daysInMonth; i++) {
       const date = new Date(year, month, i);
       result.push(this.calculatePrayerTimesForDate(date));
     }
-    
+
     return result;
   }
-  
+
   /**
    * Check if prayer times need to be recalculated based on settings changes
    */
@@ -286,24 +312,24 @@ class PrayerDataService {
       this.prayerTimesSettings.timezone !== newSettings.timezone ||
       this.prayerTimesSettings.method !== newSettings.method ||
       this.prayerTimesSettings.asrJuristic !== newSettings.asrJuristic ||
-      JSON.stringify(this.prayerTimesSettings.adjustments) !== 
+      JSON.stringify(this.prayerTimesSettings.adjustments) !==
         JSON.stringify(newSettings.adjustments)
     );
   }
-  
+
   /**
    * Check if prayer times are for the current date
    */
   private prayerTimesForDifferentDate(date: Date): boolean {
-    if (!this.prayerData) return true;
-    
+    if (!this.prayerData) {return true;}
+
     // Extract date components
     const currentDate = new Date(
       date.getFullYear(),
       date.getMonth(),
       date.getDate()
     );
-    
+
     // Extract date from prayer times (using Fajr time)
     const prayerDate = new Date(this.prayerData.prayerTimes.fajr);
     const storedDate = new Date(
@@ -311,10 +337,10 @@ class PrayerDataService {
       prayerDate.getMonth(),
       prayerDate.getDate()
     );
-    
+
     // Compare dates
     return currentDate.getTime() !== storedDate.getTime();
   }
 }
 
-export default PrayerDataService.getInstance(); 
+export default PrayerDataService.getInstance();

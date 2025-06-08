@@ -1,3 +1,6 @@
+/* eslint-disable react-native/no-inline-styles */
+/* eslint-disable radix */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -14,6 +17,7 @@ import { COLORS } from '../styles/theme';
 import { normalizeSize, scaleFontSize } from '../utils/SizeUtils';
 import { useDisplay } from '../context/DisplayContext';
 import locationService from '../core/LocationSettings';
+import { DEFAULT_SETTINGS } from '../core/prayerTimes';
 import prayerDataService from '../core/PrayerDataService';
 import weatherService from '../core/WeatherService';
 
@@ -43,39 +47,42 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onSaveSettings 
     iqamahOffsets,
     isLoading,
     updateSettings,
-    updateIqamahOffsets
+    updateIqamahOffsets,
   } = useDisplay();
 
   // Local settings state (initialized from context)
-  const [localSettings, setLocalSettings] = useState(settings || locationService.getSettings());
+  const [localSettings, setLocalSettings] = useState(settings || {
+    ...DEFAULT_SETTINGS,
+    ...locationService.getLocation(), // Get location coordinates
+  });
   const [localIqamahOffsets, setLocalIqamahOffsets] = useState(iqamahOffsets || {
     fajr: 20,
     dhuhr: 10,
     asr: 10,
     maghrib: 5,
-    isha: 15
+    isha: 15,
   });
-  
+
   // Display connection state
   const [displayAddress, setDisplayAddress] = useState(serverAddress);
-  
+
   // State for weather API key
   const [apiKey, setApiKey] = useState<string>('');
-  
+
   // Update local settings when context settings change
   useEffect(() => {
     if (settings) {
       setLocalSettings(settings);
     }
   }, [settings]);
-  
+
   // Update local iqamah offsets when context offsets change
   useEffect(() => {
     if (iqamahOffsets) {
       setLocalIqamahOffsets(iqamahOffsets);
     }
   }, [iqamahOffsets]);
-  
+
   // Load API key on mount
   useEffect(() => {
     // This is just to initialize the weather service
@@ -92,10 +99,10 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onSaveSettings 
         console.error('Error loading API key:', error);
       }
     };
-    
+
     loadApiKey();
   }, []);
-  
+
   // Connect to display
   const handleConnect = () => {
     if (connectionStatus === 'connected' || connectionStatus === 'connecting') {
@@ -110,7 +117,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onSaveSettings 
       }
     }
   };
-  
+
   // Save settings
   const handleSaveSettings = () => {
     // First save the API key if provided
@@ -120,23 +127,24 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onSaveSettings 
         await weatherService.setApiKey(apiKey);
       }
     };
-    
+
     // Then save all settings
     saveApiKey()
-      .then(() => locationService.saveSettings(localSettings))
+      // Save just the location part to LocationService
+      .then(() => locationService.updateLocation(localSettings.latitude, localSettings.longitude))
       .then(() => {
         // Refresh prayer data with new settings
         return prayerDataService.refreshPrayerData(true);
       })
       .then(() => {
         Alert.alert('Success', 'Settings saved successfully');
-        
+
         // If connected to display, update remote settings
         if (connectionStatus === 'connected') {
           updateSettings(localSettings);
           updateIqamahOffsets(localIqamahOffsets);
         }
-        
+
         // Notify parent component
         if (onSaveSettings) {
           onSaveSettings();
@@ -147,7 +155,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onSaveSettings 
         Alert.alert('Error', 'Failed to save settings');
       });
   };
-  
+
   // Update location
   const handleLocationUpdate = () => {
     // Check if we can access device location
@@ -156,9 +164,13 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onSaveSettings 
         if (hasPermission) {
           locationService.setUseDeviceLocation(true)
             .then(() => {
-              // Reload settings from service
-              const updatedSettings = locationService.getSettings();
-              setLocalSettings(updatedSettings);
+              // Reload location from service
+              const location = locationService.getLocation();
+              // Combine with default prayer settings
+              setLocalSettings({
+                ...DEFAULT_SETTINGS,
+                ...location,
+              });
               Alert.alert('Success', 'Location updated to device location');
             })
             .catch(error => {
@@ -174,14 +186,14 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onSaveSettings 
         }
       });
   };
-  
+
   // Helper to render section headers
   const renderSectionHeader = (title: string) => (
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionHeaderText}>{title}</Text>
     </View>
   );
-  
+
   // Helper to render selectable options
   const renderOption = (label: string, isSelected: boolean, onPress: () => void) => (
     <TouchableOpacity
@@ -193,7 +205,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onSaveSettings 
       </Text>
     </TouchableOpacity>
   );
-  
+
   return (
     <View style={styles.container}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
@@ -211,7 +223,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onSaveSettings 
           <TouchableOpacity
             style={[
               styles.connectButton,
-              connectionStatus === 'connected' ? styles.disconnectButton : {}
+              connectionStatus === 'connected' ? styles.disconnectButton : {},
             ]}
             onPress={handleConnect}
             disabled={isLoading}
@@ -224,15 +236,15 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onSaveSettings 
               </Text>
             )}
           </TouchableOpacity>
-          
+
           <Text style={styles.statusText}>
             Status: {connectionStatus} {statusMessage ? `(${statusMessage})` : ''}
           </Text>
         </View>
-        
+
         {/* Prayer Times Settings */}
         {renderSectionHeader('Prayer Times Settings')}
-        
+
         {/* Location */}
         <View style={styles.settingSection}>
           <Text style={styles.label}>Location:</Text>
@@ -245,7 +257,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onSaveSettings 
                 onChangeText={(value) => {
                   setLocalSettings({
                     ...localSettings,
-                    latitude: parseFloat(value) || 0
+                    latitude: parseFloat(value) || 0,
                   });
                 }}
                 keyboardType="numeric"
@@ -259,19 +271,19 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onSaveSettings 
                 onChangeText={(value) => {
                   setLocalSettings({
                     ...localSettings,
-                    longitude: parseFloat(value) || 0
+                    longitude: parseFloat(value) || 0,
                   });
                 }}
                 keyboardType="numeric"
               />
             </View>
           </View>
-          
+
           <TouchableOpacity style={styles.locationButton} onPress={handleLocationUpdate}>
             <Text style={styles.buttonText}>Use Device Location</Text>
           </TouchableOpacity>
         </View>
-        
+
         {/* Calculation Method */}
         <View style={styles.settingSection}>
           <Text style={styles.label}>Calculation Method:</Text>
@@ -283,14 +295,14 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onSaveSettings 
                   localSettings.method === method,
                   () => setLocalSettings({
                     ...localSettings,
-                    method
+                    method,
                   })
                 )}
               </View>
             ))}
           </View>
         </View>
-        
+
         {/* Asr Juristic Method */}
         <View style={styles.settingSection}>
           <Text style={styles.label}>Asr Calculation:</Text>
@@ -300,25 +312,25 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onSaveSettings 
               localSettings.asrJuristic === 'Standard',
               () => setLocalSettings({
                 ...localSettings,
-                asrJuristic: 'Standard'
+                asrJuristic: 'Standard',
               })
             )}
-            
+
             {renderOption(
               'Hanafi',
               localSettings.asrJuristic === 'Hanafi',
               () => setLocalSettings({
                 ...localSettings,
-                asrJuristic: 'Hanafi'
+                asrJuristic: 'Hanafi',
               })
             )}
           </View>
         </View>
-        
+
         {/* Time Adjustments */}
         <View style={styles.settingSection}>
           <Text style={styles.label}>Time Adjustments (minutes):</Text>
-          
+
           <View style={styles.adjustmentRow}>
             <Text style={styles.adjustmentLabel}>Fajr:</Text>
             <TextInput
@@ -329,14 +341,14 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onSaveSettings 
                   ...localSettings,
                   adjustments: {
                     ...localSettings.adjustments,
-                    fajr: parseInt(value) || 0
-                  }
+                    fajr: parseInt(value) || 0,
+                  },
                 });
               }}
               keyboardType="numeric"
             />
           </View>
-          
+
           <View style={styles.adjustmentRow}>
             <Text style={styles.adjustmentLabel}>Sunrise:</Text>
             <TextInput
@@ -347,14 +359,14 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onSaveSettings 
                   ...localSettings,
                   adjustments: {
                     ...localSettings.adjustments,
-                    sunrise: parseInt(value) || 0
-                  }
+                    sunrise: parseInt(value) || 0,
+                  },
                 });
               }}
               keyboardType="numeric"
             />
           </View>
-          
+
           <View style={styles.adjustmentRow}>
             <Text style={styles.adjustmentLabel}>Dhuhr:</Text>
             <TextInput
@@ -365,14 +377,14 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onSaveSettings 
                   ...localSettings,
                   adjustments: {
                     ...localSettings.adjustments,
-                    dhuhr: parseInt(value) || 0
-                  }
+                    dhuhr: parseInt(value, 10) || 0,
+                  },
                 });
               }}
               keyboardType="numeric"
             />
           </View>
-          
+
           <View style={styles.adjustmentRow}>
             <Text style={styles.adjustmentLabel}>Asr:</Text>
             <TextInput
@@ -383,14 +395,14 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onSaveSettings 
                   ...localSettings,
                   adjustments: {
                     ...localSettings.adjustments,
-                    asr: parseInt(value) || 0
-                  }
+                    asr: parseInt(value) || 0,
+                  },
                 });
               }}
               keyboardType="numeric"
             />
           </View>
-          
+
           <View style={styles.adjustmentRow}>
             <Text style={styles.adjustmentLabel}>Maghrib:</Text>
             <TextInput
@@ -401,14 +413,14 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onSaveSettings 
                   ...localSettings,
                   adjustments: {
                     ...localSettings.adjustments,
-                    maghrib: parseInt(value) || 0
-                  }
+                    maghrib: parseInt(value) || 0,
+                  },
                 });
               }}
               keyboardType="numeric"
             />
           </View>
-          
+
           <View style={styles.adjustmentRow}>
             <Text style={styles.adjustmentLabel}>Isha:</Text>
             <TextInput
@@ -419,20 +431,20 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onSaveSettings 
                   ...localSettings,
                   adjustments: {
                     ...localSettings.adjustments,
-                    isha: parseInt(value) || 0
-                  }
+                    isha: parseInt(value) || 0,
+                  },
                 });
               }}
               keyboardType="numeric"
             />
           </View>
         </View>
-        
+
         {/* Iqamah Times */}
         {renderSectionHeader('Iqamah Times')}
         <View style={styles.settingSection}>
           <Text style={styles.label}>Iqamah Offsets (minutes after Adhan):</Text>
-          
+
           <View style={styles.adjustmentRow}>
             <Text style={styles.adjustmentLabel}>Fajr:</Text>
             <TextInput
@@ -441,13 +453,13 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onSaveSettings 
               onChangeText={(value) => {
                 setLocalIqamahOffsets({
                   ...localIqamahOffsets,
-                  fajr: parseInt(value) || 0
+                  fajr: parseInt(value) || 0,
                 });
               }}
               keyboardType="numeric"
             />
           </View>
-          
+
           <View style={styles.adjustmentRow}>
             <Text style={styles.adjustmentLabel}>Dhuhr:</Text>
             <TextInput
@@ -456,13 +468,13 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onSaveSettings 
               onChangeText={(value) => {
                 setLocalIqamahOffsets({
                   ...localIqamahOffsets,
-                  dhuhr: parseInt(value) || 0
+                  dhuhr: parseInt(value) || 0,
                 });
               }}
               keyboardType="numeric"
             />
           </View>
-          
+
           <View style={styles.adjustmentRow}>
             <Text style={styles.adjustmentLabel}>Asr:</Text>
             <TextInput
@@ -471,13 +483,13 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onSaveSettings 
               onChangeText={(value) => {
                 setLocalIqamahOffsets({
                   ...localIqamahOffsets,
-                  asr: parseInt(value) || 0
+                  asr: parseInt(value) || 0,
                 });
               }}
               keyboardType="numeric"
             />
           </View>
-          
+
           <View style={styles.adjustmentRow}>
             <Text style={styles.adjustmentLabel}>Maghrib:</Text>
             <TextInput
@@ -486,13 +498,13 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onSaveSettings 
               onChangeText={(value) => {
                 setLocalIqamahOffsets({
                   ...localIqamahOffsets,
-                  maghrib: parseInt(value) || 0
+                  maghrib: parseInt(value) || 0,
                 });
               }}
               keyboardType="numeric"
             />
           </View>
-          
+
           <View style={styles.adjustmentRow}>
             <Text style={styles.adjustmentLabel}>Isha:</Text>
             <TextInput
@@ -501,14 +513,14 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onSaveSettings 
               onChangeText={(value) => {
                 setLocalIqamahOffsets({
                   ...localIqamahOffsets,
-                  isha: parseInt(value) || 0
+                  isha: parseInt(value) || 0,
                 });
               }}
               keyboardType="numeric"
             />
           </View>
         </View>
-        
+
         {/* Add the weather API section before the bottom actions */}
         {renderSectionHeader('Weather Settings')}
         <View style={styles.settingSection}>
@@ -529,7 +541,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onSaveSettings 
           </Text>
         </View>
       </ScrollView>
-      
+
       {/* Bottom Actions */}
       <View style={styles.actionButtons}>
         {onBack && (
@@ -537,8 +549,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onSaveSettings 
             <Text style={styles.buttonText}>Back</Text>
           </TouchableOpacity>
         )}
-        
-        <TouchableOpacity 
+
+        <TouchableOpacity
           style={styles.saveButton}
           onPress={handleSaveSettings}
           disabled={isLoading}

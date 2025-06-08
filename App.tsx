@@ -27,28 +27,27 @@ function App(): React.JSX.Element {
     const timer = setTimeout(() => {
       setShowSplash(false);
     }, 3000);
-    
+
     return () => clearTimeout(timer);
   }, []);
-  
+
   // Initialize weather service
   useEffect(() => {
     const initWeatherService = async () => {
       try {
         console.log('Initializing weather service...');
-        
-        // Use the API key directly first
-        const OPENWEATHERMAP_API_KEY = "7d4da3647d0642dce9775f406f661c0f";
+   // Use the API key directly first
+        const OPENWEATHERMAP_API_KEY = '7d4da3647d0642dce9775f406f661c0f';
         console.log('Using API key:', OPENWEATHERMAP_API_KEY);
-        
+
         // Set API key first
         await weatherService.setApiKey(OPENWEATHERMAP_API_KEY);
-        
+
         // Then initialize service
         await weatherService.initialize();
-        
+
         console.log('Weather service initialized, attempting to refresh weather...');
-        
+
         // Explicitly refresh
         const weatherData = await weatherService.refreshWeather();
         console.log('Weather data after refresh:', weatherData);
@@ -56,9 +55,9 @@ function App(): React.JSX.Element {
         console.error('Failed to initialize weather service:', error);
       }
     };
-    
+
     initWeatherService();
-    
+
     // Clean up service when app unmounts
     return () => {
       if (typeof weatherService.cleanup === 'function') {
@@ -73,9 +72,9 @@ function App(): React.JSX.Element {
       try {
         // Start WebSocket service for remote control
         await webSocketControllerService.start();
-        
+
         console.log('WebSocket server started successfully');
-        
+
         // Provide instructions for connecting remote app
         console.log('');
         console.log('==== REMOTE CONTROLLER CONNECTION INSTRUCTIONS ====');
@@ -100,7 +99,7 @@ function App(): React.JSX.Element {
         );
       }
     };
-    
+
     startWebSocketService();
 
     // Cleanup function to stop WebSocket service when unmounting

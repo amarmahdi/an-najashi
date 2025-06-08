@@ -38,7 +38,7 @@ class WeatherService {
       console.error('Failed to load API key:', error);
       this.storageAvailable = false;
     });
-    
+
     // Load cached weather if available
     this.loadCachedWeather().catch(error => {
       console.error('Failed to load cached weather:', error);
@@ -62,15 +62,15 @@ class WeatherService {
     if (customApiKey) {
       await this.setApiKey(customApiKey);
     }
-    
+
     // Fetch weather immediately
     await this.refreshWeather();
-    
+
     // Set up refresh interval (every 30 minutes)
     if (this.refreshInterval) {
       clearInterval(this.refreshInterval);
     }
-    
+
     this.refreshInterval = setInterval(async () => {
       try {
         await this.refreshWeather();
@@ -95,7 +95,7 @@ class WeatherService {
    */
   public async setApiKey(apiKey: string): Promise<void> {
     this.apiKey = apiKey;
-    
+
     if (this.storageAvailable) {
       try {
         await AsyncStorage.setItem(STORAGE_KEY_API_KEY, apiKey);
@@ -119,11 +119,11 @@ class WeatherService {
   private async loadApiKey(): Promise<string> {
     try {
       const apiKey = await AsyncStorage.getItem(STORAGE_KEY_API_KEY);
-      
+
       if (apiKey) {
         this.apiKey = apiKey;
       }
-      
+
       return this.apiKey;
     } catch (error) {
       console.error('Error loading API key:', error);
@@ -138,10 +138,10 @@ class WeatherService {
   private async loadCachedWeather(): Promise<WeatherData | null> {
     try {
       const weatherJson = await AsyncStorage.getItem(STORAGE_KEY_WEATHER);
-      
+
       if (weatherJson) {
         const parsed = JSON.parse(weatherJson);
-        
+
         // Check if the data is less than 1 hour old
         const now = Date.now();
         if (parsed.lastUpdated && now - parsed.lastUpdated < 3600000) {
@@ -149,7 +149,7 @@ class WeatherService {
           return parsed;
         }
       }
-      
+
       return null;
     } catch (error) {
       console.error('Error loading cached weather:', error);
@@ -166,9 +166,9 @@ class WeatherService {
         // Add timestamp to data
         const dataWithTimestamp = {
           ...data,
-          lastUpdated: Date.now()
+          lastUpdated: Date.now(),
         };
-        
+
         await AsyncStorage.setItem(STORAGE_KEY_WEATHER, JSON.stringify(dataWithTimestamp));
       } catch (error) {
         console.error('Error caching weather data:', error);
@@ -191,56 +191,57 @@ class WeatherService {
       console.warn('No API key set for weather service');
       return this.provideMockWeatherData();
     }
-    
+
     try {
       console.log('Refreshing weather with API key:', this.apiKey);
-      const settings = locationService.getSettings();
-      const { latitude, longitude } = settings;
-      
+      // Get location coordinates
+      const location = locationService.getLocation();
+      const { latitude, longitude } = location;
+
       console.log(`Fetching weather for coordinates: lat=${latitude}, lon=${longitude}`);
       const url = `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&units=metric&appid=${this.apiKey}`;
       console.log('Weather API URL:', url);
-      
+
       const response = await fetch(url);
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error(`Weather API error: ${response.status} ${response.statusText}`);
         console.error('Error details:', errorText);
-        
+
         // If we get a 401 (unauthorized) error, provide mock data
         if (response.status === 401) {
           console.log('Using mock weather data while waiting for API key activation');
           return this.provideMockWeatherData();
         }
-        
+
         throw new Error(`Weather API returned ${response.status}: ${errorText}`);
       }
-      
+
       const data = await response.json();
       console.log('Weather data received:', data);
-      
+
       // Format the weather data
       const weatherData: WeatherData = {
         temperature: Math.round(data.main.temp),
         feelsLike: Math.round(data.main.feels_like),
         description: data.weather[0].description,
         icon: data.weather[0].icon,
-        lastUpdated: Date.now()
+        lastUpdated: Date.now(),
       };
-      
+
       this.weatherData = weatherData;
-      
+
       // Cache the data
       await this.cacheWeatherData(weatherData);
-      
+
       return weatherData;
     } catch (error) {
       console.error('Error fetching weather:', error);
       return this.provideMockWeatherData();
     }
   }
-  
+
   /**
    * Provide mock weather data when API is not available
    */
@@ -251,9 +252,9 @@ class WeatherService {
       feelsLike: 24,
       description: 'API key activating',
       icon: '01d', // Clear sky icon
-      lastUpdated: Date.now()
+      lastUpdated: Date.now(),
     };
-    
+
     this.weatherData = mockData;
     return mockData;
   }
@@ -261,4 +262,4 @@ class WeatherService {
 
 // Export singleton instance
 const weatherService = WeatherService.getInstance();
-export default weatherService; 
+export default weatherService;

@@ -98,4 +98,4 @@ class MockAsyncStorage {
   }
 }
 
-export default new MockAsyncStorage(); 
+export default new MockAsyncStorage();

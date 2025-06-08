@@ -1,6 +1,6 @@
-import { PrayerTimesSettings, CalculationMethod, HighLatitudeRule, AsrJuristicMethod } from './prayerTimes';
+/* eslint-disable @typescript-eslint/no-unused-vars */
+import { PrayerTimesSettings } from './prayerTimes';
 import Geolocation from '@react-native-community/geolocation';
-import { Alert, Platform, PermissionsAndroid } from 'react-native';
 import mockAsyncStorage from './MockAsyncStorage';
 
 // Use real AsyncStorage with fallback to mock
@@ -13,22 +13,10 @@ try {
   AsyncStorage = mockAsyncStorage;
 }
 
-// Default settings (Edmonton coordinates)
-const DEFAULT_SETTINGS: PrayerTimesSettings = {
+// Default location coordinates (Edmonton)
+const DEFAULT_LOCATION = {
   latitude: 53.5461,
   longitude: -113.4938,
-  timezone: -7, // Mountain Standard Time (UTC-7)
-  method: 'MWL' as CalculationMethod,
-  asrJuristic: 'Standard' as AsrJuristicMethod,
-  highLatitudeRule: 'AngleBased' as HighLatitudeRule,
-  adjustments: {
-    fajr: 0,
-    sunrise: 0,
-    dhuhr: 0,
-    asr: 0,
-    maghrib: 0,
-    isha: 0
-  }
 };
 
 // Interface for geolocation position
@@ -50,7 +38,7 @@ const STORAGE_KEY_SETTINGS = '@prayer_location_settings';
 // Storage key for iqamah offsets
 const STORAGE_KEY_IQAMAH_OFFSETS = '@prayer_iqamah_offsets';
 
-// Define IqamahOffsets interface 
+// Define IqamahOffsets interface
 export interface IqamahOffsets {
   fajr: number;
   dhuhr: number;
@@ -64,17 +52,19 @@ export interface IqamahOffsets {
  */
 class LocationService {
   private static instance: LocationService;
-  private settings: PrayerTimesSettings = DEFAULT_SETTINGS;
+  private latitude: number = DEFAULT_LOCATION.latitude;
+  private longitude: number = DEFAULT_LOCATION.longitude;
   private useDeviceLocation: boolean = false;
   private storageAvailable: boolean = true;
 
   private constructor() {
-    // Try to load settings on initialization
-    this.loadSettings().catch(error => {
-      console.error('Failed to load settings:', error);
+    // Try to load location on initialization
+    this.loadLocation().catch(error => {
+      console.error('Failed to load location settings:', error);
       this.storageAvailable = false;
-      // Use default settings if loading fails
-      this.settings = { ...DEFAULT_SETTINGS };
+      // Use default location if loading fails
+      this.latitude = DEFAULT_LOCATION.latitude;
+      this.longitude = DEFAULT_LOCATION.longitude;
     });
   }
 
@@ -89,79 +79,71 @@ class LocationService {
   }
 
   /**
-   * Load settings from storage
+   * Load location from storage
    */
-  public async loadSettings(): Promise<PrayerTimesSettings> {
+  public async loadLocation(): Promise<{latitude: number, longitude: number}> {
     try {
-      const settingsJson = await AsyncStorage.getItem(STORAGE_KEY_SETTINGS);
-      
-      if (settingsJson) {
-        this.settings = JSON.parse(settingsJson);
+      const locationJson = await AsyncStorage.getItem(STORAGE_KEY_SETTINGS);
+
+      if (locationJson) {
+        const savedData = JSON.parse(locationJson);
+        this.latitude = savedData.latitude || DEFAULT_LOCATION.latitude;
+        this.longitude = savedData.longitude || DEFAULT_LOCATION.longitude;
       } else {
-        // Initialize with default settings if none are saved
-        this.settings = { ...DEFAULT_SETTINGS };
+        // Initialize with default location if none saved
+        this.latitude = DEFAULT_LOCATION.latitude;
+        this.longitude = DEFAULT_LOCATION.longitude;
       }
-      
-      return this.settings;
+
+      return { latitude: this.latitude, longitude: this.longitude };
     } catch (error) {
-      console.error('Error loading settings:', error);
+      console.error('Error loading location:', error);
       this.storageAvailable = false;
-      // Return default settings in case of error
-      this.settings = { ...DEFAULT_SETTINGS };
-      return this.settings;
+      // Return default location in case of error
+      this.latitude = DEFAULT_LOCATION.latitude;
+      this.longitude = DEFAULT_LOCATION.longitude;
+      return { latitude: this.latitude, longitude: this.longitude };
     }
   }
 
   /**
-   * Save settings to storage
+   * Save location to storage
    */
-  public async saveSettings(settings: PrayerTimesSettings): Promise<void> {
-    this.settings = settings;
-    
+  public async saveLocation(latitude: number, longitude: number): Promise<void> {
+    this.latitude = latitude;
+    this.longitude = longitude;
+
     if (!this.storageAvailable) {
-      console.warn('Storage not available, settings not persisted');
+      console.warn('Storage not available, location not persisted');
       return;
     }
-    
+
     try {
-      await AsyncStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settings));
+      await AsyncStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify({ latitude, longitude }));
     } catch (error) {
-      console.error('Error saving settings:', error);
+      console.error('Error saving location:', error);
       this.storageAvailable = false;
       throw error;
     }
   }
 
   /**
-   * Get current settings
+   * Get current location coordinates
    */
-  public getSettings(): PrayerTimesSettings {
-    return { ...this.settings };
+  public getLocation(): {latitude: number, longitude: number} {
+    return {
+      latitude: this.latitude,
+      longitude: this.longitude,
+    };
   }
 
-  /**
-   * Update calculation method
-   */
-  public async updateCalculationMethod(method: CalculationMethod): Promise<void> {
-    const newSettings = {
-      ...this.settings,
-      method
-    };
-    
-    await this.saveSettings(newSettings);
-  }
+
 
   /**
    * Update location
    */
   public async updateLocation(latitude: number, longitude: number): Promise<void> {
-    const newSettings = {
-      ...this.settings,
-      latitude,
-      longitude
-    };
-    
-    await this.saveSettings(newSettings);
+    await this.saveLocation(latitude, longitude);
   }
 
   /**
@@ -186,26 +168,24 @@ class LocationService {
    */
   public async setUseDeviceLocation(useDeviceLocation: boolean): Promise<void> {
     this.useDeviceLocation = useDeviceLocation;
-    
+
     if (useDeviceLocation) {
       try {
         const hasPermission = await this.checkLocationPermission();
-        
+
         if (!hasPermission) {
           throw new Error('Location permission denied');
         }
-        
+
         // Get current position
         const position = await this.getCurrentPosition();
-        
+
         if (position && position.coords) {
           // Update settings with current position
           await this.updateLocation(position.coords.latitude, position.coords.longitude);
-          
-          // Update timezone
-          const timezone = this.getTimezoneOffset();
-          this.settings.timezone = timezone;
-          await this.saveSettings(this.settings);
+
+          // Location successfully updated
+          console.log('Updated location using device coordinates');
         }
       } catch (error) {
         console.error('Error setting device location:', error);
@@ -215,10 +195,10 @@ class LocationService {
   }
 
   /**
-   * Reset settings to default
+   * Reset location to default
    */
-  public async resetSettings(): Promise<void> {
-    await this.saveSettings(DEFAULT_SETTINGS);
+  public async resetLocation(): Promise<void> {
+    await this.saveLocation(DEFAULT_LOCATION.latitude, DEFAULT_LOCATION.longitude);
   }
 
   /**
@@ -257,7 +237,7 @@ class LocationService {
     try {
       // Get stored offsets
       const offsetsStr = this.getValueFromStorage(STORAGE_KEY_IQAMAH_OFFSETS);
-      
+
       // If no saved offsets, return defaults
       if (!offsetsStr) {
         // Default iqamah offsets
@@ -266,20 +246,20 @@ class LocationService {
           dhuhr: 10,
           asr: 10,
           maghrib: 5,
-          isha: 10
+          isha: 10,
         };
       }
-      
+
       // Parse stored offsets
       const storedOffsets = JSON.parse(offsetsStr);
-      
+
       // Create offsets object with defaults for any missing values
       return {
         fajr: this.parseNumericValue(storedOffsets.fajr, 20),
         dhuhr: this.parseNumericValue(storedOffsets.dhuhr, 10),
         asr: this.parseNumericValue(storedOffsets.asr, 10),
         maghrib: this.parseNumericValue(storedOffsets.maghrib, 5),
-        isha: this.parseNumericValue(storedOffsets.isha, 10)
+        isha: this.parseNumericValue(storedOffsets.isha, 10),
       };
     } catch (error) {
       console.error('Error getting iqamah offsets:', error);
@@ -289,11 +269,11 @@ class LocationService {
         dhuhr: 10,
         asr: 10,
         maghrib: 5,
-        isha: 10
+        isha: 10,
       };
     }
   }
-  
+
   /**
    * Update the Iqamah offset settings
    */
@@ -303,29 +283,29 @@ class LocationService {
       if (!offsets || typeof offsets !== 'object') {
         throw new Error('Invalid iqamah offsets');
       }
-      
+
       // Convert any string values to numbers
       const normalizedOffsets: IqamahOffsets = {
         fajr: this.parseNumericValue(offsets.fajr, 20),
         dhuhr: this.parseNumericValue(offsets.dhuhr, 10),
         asr: this.parseNumericValue(offsets.asr, 10),
         maghrib: this.parseNumericValue(offsets.maghrib, 5),
-        isha: this.parseNumericValue(offsets.isha, 10)
+        isha: this.parseNumericValue(offsets.isha, 10),
       };
-      
+
       // Save to storage
       this.saveValueToStorage(
-        STORAGE_KEY_IQAMAH_OFFSETS, 
+        STORAGE_KEY_IQAMAH_OFFSETS,
         JSON.stringify(normalizedOffsets)
       );
-      
+
       console.log('Iqamah offsets updated:', normalizedOffsets);
     } catch (error) {
       console.error('Error updating iqamah offsets:', error);
       throw error;
     }
   }
-  
+
   /**
    * Helper function to parse a numeric value
    */
@@ -333,18 +313,18 @@ class LocationService {
     if (value === undefined || value === null) {
       return defaultValue;
     }
-    
+
     if (typeof value === 'number') {
       return value;
     }
-    
+
     if (typeof value === 'string') {
       const parsed = parseFloat(value);
       if (!isNaN(parsed)) {
         return parsed;
       }
     }
-    
+
     return defaultValue;
   }
 
@@ -381,4 +361,4 @@ class LocationService {
   }
 }
 
-export default LocationService.getInstance(); 
+export default LocationService.getInstance();

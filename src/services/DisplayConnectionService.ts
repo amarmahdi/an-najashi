@@ -230,7 +230,7 @@ export class DisplayConnectionService {
    */
   private handleOpen(): void {
     this.setStatus('connected', 'Connected to prayer display');
-    
+
     // Start heartbeat to keep connection alive
     this.heartbeatInterval = setInterval(() => {
       if (this.socket && this.socket.readyState === WebSocket.OPEN) {
@@ -258,19 +258,19 @@ export class DisplayConnectionService {
             listener(data.settings);
           });
           break;
-        
+
         case 'iqamah_offsets':
           // Notify Iqamah offsets listeners
           this.iqamahListeners.forEach(listener => {
             listener(data.offsets);
           });
           break;
-        
+
         case 'error':
           console.error('Error from display:', data.message);
           this.setStatus('error', data.message || 'Unknown error from display');
           break;
-        
+
         default:
           console.warn('Unknown message type:', data.type);
       }
@@ -284,7 +284,7 @@ export class DisplayConnectionService {
    */
   private handleClose(): void {
     this.socket = null;
-    
+
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
       this.heartbeatInterval = null;
@@ -319,4 +319,4 @@ export class DisplayConnectionService {
   }
 }
 
-export default DisplayConnectionService.getInstance(); 
+export default DisplayConnectionService.getInstance();
