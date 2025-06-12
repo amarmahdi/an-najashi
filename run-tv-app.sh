@@ -60,3 +60,10 @@ echo "2. The app should automatically install and launch on your TV device"
 echo "3. Use a remote control or D-pad for navigation"
 echo "4. If using an emulator, use arrow keys for navigation"
 echo "====================================================="
+echo 
+echo "Waiting 5 seconds for app to load, then showing prayer times logs..."
+sleep 5
+echo "====================================================="
+echo "  PRAYER TIMES DEBUG OUTPUT:"
+echo "====================================================="
+adb logcat -s ReactNativeJS:V | grep -A 5 "Formatted Times" | head -15

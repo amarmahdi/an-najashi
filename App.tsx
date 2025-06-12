@@ -10,10 +10,11 @@ import { SafeAreaView, StatusBar, StyleSheet, View, Alert } from 'react-native';
 
 // Import screens
 import SplashScreen from './src/screens/SplashScreen';
-import HomeScreen from './src/screens/HomeScreen';
+import SimpleHomeScreen from './src/screens/SimpleHomeScreen';
 
 // Import context provider
 import { DisplayProvider } from './src/context/DisplayContext';
+import { PrayerTimesProvider } from './src/contexts/PrayerTimesContext';
 
 // Import services
 import weatherService from './src/core/WeatherService';
@@ -110,16 +111,18 @@ function App(): React.JSX.Element {
 
   return (
     <DisplayProvider>
-      <SafeAreaView style={styles.container}>
-        <StatusBar hidden />
-        <View style={styles.container}>
-          {showSplash ? (
-            <SplashScreen onFinish={() => setShowSplash(false)} />
-          ) : (
-            <HomeScreen />
-          )}
-        </View>
-      </SafeAreaView>
+      <PrayerTimesProvider>
+        <SafeAreaView style={styles.container}>
+          <StatusBar hidden />
+          <View style={styles.container}>
+            {showSplash ? (
+              <SplashScreen onFinish={() => setShowSplash(false)} />
+            ) : (
+              <SimpleHomeScreen />
+            )}
+          </View>
+        </SafeAreaView>
+      </PrayerTimesProvider>
     </DisplayProvider>
   );
 }
