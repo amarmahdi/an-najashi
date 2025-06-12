@@ -1,12 +1,12 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
+
 import React, { useEffect } from 'react';
 import {
   View,
-  Text,
+  Image,
   StyleSheet,
   Animated,
+  ActivityIndicator,
 } from 'react-native';
-import { COLORS, FONTS } from '../styles/theme';
 
 interface SplashScreenProps {
   onFinish: () => void;
@@ -19,7 +19,7 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
     // Fade in animation
     Animated.timing(fadeAnim, {
       toValue: 1,
-      duration: 1500,
+      duration: 1000,
       useNativeDriver: true,
     }).start();
 
@@ -34,12 +34,16 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
   return (
     <View style={styles.container}>
       <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
-        <Text style={styles.title}>An-Najashi</Text>
-        <Text style={styles.subtitle}>Mosque Prayer Times</Text>
-        {/* Mosque icon represented as text */}
-        <View style={styles.logoContainer}>
-          <Text style={styles.logoText}>🕌</Text>
-        </View>
+        <Image
+          source={require('../assets/images/logo.png')}
+          style={styles.logo}
+          resizeMode="contain"
+        />
+        <ActivityIndicator
+          style={styles.loader}
+          size="large"
+          color="#102a58"
+        />
       </Animated.View>
     </View>
   );
@@ -48,44 +52,21 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#102a58',
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
   },
   content: {
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  title: {
-    fontSize: 52,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    marginBottom: 16,
-    textAlign: 'center',
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
-  },
-  subtitle: {
-    fontSize: 32,
-    color: '#a3c2f7',
-    marginBottom: 48,
-    textAlign: 'center',
-  },
-  logoContainer: {
+  logo: {
     width: 200,
     height: 200,
-    borderRadius: 100,
-    backgroundColor: '#0c7cd5',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.7,
-    shadowRadius: 8,
-    elevation: 10,
+    marginBottom: 30,
   },
-  logoText: {
-    fontSize: 100,
+  loader: {
+    marginTop: 20,
   },
 });
 

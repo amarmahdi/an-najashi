@@ -8,6 +8,10 @@ import {
   SafeAreaView,
   StatusBar,
   TouchableOpacity,
+  TextInput,
+  Platform,
+  Image,
+  findNodeHandle,
 } from 'react-native';
 import { usePrayerTimes, HighLatitudeRuleType } from '../contexts/PrayerTimesContext';
 
@@ -28,6 +32,12 @@ const PrayerSettingsScreen: React.FC<PrayerSettingsScreenProps> = ({ onBack }) =
     method,
     setMethod,
     prayerTimes,
+    prayerNames,
+    iqamahOffsets,
+    setIqamahOffsets,
+    prayerTimeAdjustments,
+    setPrayerTimeAdjustments,
+    saveSettings,
   } = usePrayerTimes();
 
   // For UI effects
@@ -179,6 +189,202 @@ const PrayerSettingsScreen: React.FC<PrayerSettingsScreenProps> = ({ onBack }) =
             </View>
           </ShadowCard>
 
+          {/* Prayer Time Adjustments Section */}
+          <ShadowCard
+            cornerRadius={15}
+            backgroundColor="#1a1f26"
+            elevation={8}
+            shadowOpacity={0.5}
+            style={styles.sectionCard}
+          >
+            <Text style={[styles.sectionTitle, { fontSize: scaleFontSize(20) }]}>
+              Prayer Time Adjustments
+            </Text>
+            <Text style={[styles.sectionDescription, { fontSize: scaleFontSize(14) }]}>
+              Adjust prayer times forward (positive) or backward (negative) in minutes
+            </Text>
+
+            {prayerNames.map((name: string, index: number) => {
+              // Skip Sunrise for prayer time adjustments (since there's no iqamah for Sunrise)
+              if (name === 'Sunrise') { return null; }
+
+              return (
+                <View key={`prayer-adj-${index}`} style={styles.adjustmentRow}>
+                  <Text style={styles.adjustmentLabel}>{name}:</Text>
+                  <View style={styles.adjustmentControls}>
+                    <TouchableOpacity
+                      style={[styles.adjustmentButton, { margin: 10 }]}
+                      onPress={() => {
+                        const newAdjustments = [...prayerTimeAdjustments];
+                        newAdjustments[index] = (newAdjustments[index] || 0) - 1;
+                        setPrayerTimeAdjustments(newAdjustments);
+                      }}
+                      accessibilityLabel={`Decrease ${name} time`}
+                      accessible={true}
+                      accessibilityRole="button"
+                      testID={`decrease-prayer-${index}`}
+                      hasTVPreferredFocus={index === 0}
+                      nextFocusRight={index * 100 + 1}
+                      nextFocusDown={index * 100 + 1}
+                    >
+                      <Text style={styles.adjustmentButtonText}>-</Text>
+                    </TouchableOpacity>
+
+                    <TextInput
+                      style={styles.adjustmentInput}
+                      value={String(prayerTimeAdjustments[index] || 0)}
+                      keyboardType="number-pad"
+                      onChangeText={(text) => {
+                        const value = parseInt(text, 10) || 0;
+                        const newAdjustments = [...prayerTimeAdjustments];
+                        newAdjustments[index] = value;
+                        setPrayerTimeAdjustments(newAdjustments);
+                      }}
+                      accessibilityLabel={`${name} time adjustment in minutes`}
+                      nextFocusLeft={index * 100}
+                      nextFocusRight={index * 100 + 2}
+                      nextFocusUp={index > 0 ? (index - 1) * 100 + 1 : index * 100}
+                      nextFocusDown={index < 5 ? (index + 1) * 100 : index * 100 + 2}
+                    />
+
+                    <TouchableOpacity
+                      style={[styles.adjustmentButton, { margin: 10 }]}
+                      onPress={() => {
+                        const newAdjustments = [...prayerTimeAdjustments];
+                        newAdjustments[index] = (newAdjustments[index] || 0) + 1;
+                        setPrayerTimeAdjustments(newAdjustments);
+                      }}
+                      accessibilityLabel={`Increase ${name} time`}
+                      accessible={true}
+                      accessibilityRole="button"
+                      testID={`increase-prayer-${index}`}
+                      nextFocusLeft={index * 100 + 1}
+                      nextFocusUp={index > 0 ? (index - 1) * 100 + 2 : index * 100}
+                      nextFocusDown={index < 5 ? (index + 1) * 100 + 2 : index * 100 + 2}
+                    >
+                      <Text style={styles.adjustmentButtonText}>+</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              );
+            })}
+
+            <TouchableOpacity
+              style={styles.resetButton}
+              onPress={() => {
+                setPrayerTimeAdjustments([0, 0, 0, 0, 0, 0]);
+              }}
+              testID="prayer-adjustments-reset"
+              accessible={true}
+              accessibilityRole="button"
+            >
+              <Text style={styles.resetButtonText}>Reset Prayer Times</Text>
+            </TouchableOpacity>
+          </ShadowCard>
+
+          {/* Iqama Time Adjustments Section */}
+          <ShadowCard
+            cornerRadius={15}
+            backgroundColor="#1a1f26"
+            elevation={8}
+            shadowOpacity={0.5}
+            style={styles.sectionCard}
+          >
+            <Text style={[styles.sectionTitle, { fontSize: scaleFontSize(20) }]}>
+              Iqama Time Adjustments
+            </Text>
+            <Text style={[styles.sectionDescription, { fontSize: scaleFontSize(14) }]}>
+              Set minutes after prayer time for iqama
+            </Text>
+
+            {prayerNames.map((name: string, index: number) => {
+              // Skip sunrise for iqamah offsets (since there's no iqamah for Sunrise)
+              if (index === 1) { return null; }
+
+              return (
+                <View key={`iqama-adj-${index}`} style={styles.adjustmentRow}>
+                  <Text style={styles.adjustmentLabel}>{name}:</Text>
+                  <View style={styles.adjustmentControls}>
+                    <TouchableOpacity
+                      style={[styles.adjustmentButton, { margin: 10 }]}
+                      onPress={() => {
+                        const newOffsets = [...iqamahOffsets];
+                        newOffsets[index] = Math.max(0, (newOffsets[index] || 0) - 1);
+                        setIqamahOffsets(newOffsets);
+                      }}
+                      accessibilityLabel={`Decrease ${name} iqamah time`}
+                      accessible={true}
+                      accessibilityRole="button"
+                      testID={`decrease-iqamah-${index}`}
+                      nextFocusRight={(index + 6) * 100 + 1}
+                      nextFocusDown={(index + 6) * 100 + 1}
+                    >
+                      <Text style={styles.adjustmentButtonText}>-</Text>
+                    </TouchableOpacity>
+
+                    <TextInput
+                      style={styles.adjustmentInput}
+                      value={String(iqamahOffsets[index] || 0)}
+                      keyboardType="number-pad"
+                      onChangeText={(text) => {
+                        const value = parseInt(text, 10) || 0;
+                        const newOffsets = [...iqamahOffsets];
+                        newOffsets[index] = Math.max(0, value);
+                        setIqamahOffsets(newOffsets);
+                      }}
+                      accessibilityLabel={`${name} iqama time offset in minutes`}
+                      nextFocusLeft={(index + 6) * 100}
+                      nextFocusRight={(index + 6) * 100 + 2}
+                      nextFocusUp={index > 0 ? (index + 5) * 100 + 1 : (index + 6) * 100}
+                      nextFocusDown={(index < 5 && index !== 1) ? (index + 7) * 100 : (index + 6) * 100 + 2}
+                    />
+
+                    <TouchableOpacity
+                      style={[styles.adjustmentButton, { margin: 10 }]}
+                      onPress={() => {
+                        const newOffsets = [...iqamahOffsets];
+                        newOffsets[index] = (newOffsets[index] || 0) + 1;
+                        setIqamahOffsets(newOffsets);
+                      }}
+                      accessibilityLabel={`Increase ${name} iqama time`}
+                      accessible={true}
+                      accessibilityRole="button"
+                      testID={`increase-iqamah-${index}`}
+                      tvParallaxProperties={{enabled: false}}
+                      nextFocusLeft={(index + 6) * 100 + 1}
+                      nextFocusUp={index > 0 ? (index + 5) * 100 + 2 : (index + 6) * 100}
+                      nextFocusDown={(index < 5 && index !== 1) ? (index + 7) * 100 + 2 : (index + 6) * 100 + 1}
+                    >
+                      <Text style={styles.adjustmentButtonText}>+</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              );
+            })}
+
+            <TouchableOpacity
+              style={styles.resetButton}
+              onPress={() => {
+                setIqamahOffsets([30, 0, 30, 15, 5, 15]);
+              }}
+            >
+              <Text style={styles.resetButtonText}>Reset Iqama Times</Text>
+            </TouchableOpacity>
+          </ShadowCard>
+
+          {/* Save Changes Button */}
+          <TouchableOpacity
+            style={styles.saveButton}
+            onPress={async () => {
+              await saveSettings();
+              if (onBack) {
+                onBack();
+              }
+            }}
+          >
+            <Text style={styles.saveButtonText}>Save Changes & Return</Text>
+          </TouchableOpacity>
+
           {/* Current Settings Display */}
           <ShadowCard
             cornerRadius={15}
@@ -290,27 +496,136 @@ const styles = StyleSheet.create({
     marginBottom: normalizeSize(20),
     lineHeight: scaleFontSize(20),
   },
+  methodsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
+  },
+  methodButton: {
+    backgroundColor: 'rgba(50, 50, 50, 0.8)',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    margin: 6,
+    minWidth: 120,
+    alignItems: 'center',
+  },
+  selectedMethod: {
+    backgroundColor: 'rgba(25, 118, 210, 0.8)',
+  },
+  methodButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  saveButtonContainer: {
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  saveButtonInner: {
+    backgroundColor: 'rgba(76, 175, 80, 0.8)',
+    paddingHorizontal: 40,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  saveButtonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  currentSettingsTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 8,
+  },
+  currentSettingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+  },
+  currentSettingLabel: {
+    color: '#CCCCCC',
+    fontSize: 16,
+  },
+  currentSettingValue: {
+    color: '#FFFFFF',
+    fontSize: 16,
+  },
+  adjustmentRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  adjustmentLabel: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    flex: 1,
+  },
+  adjustmentControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  adjustmentButton: {
+    backgroundColor: '#333',
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 20,
+    marginHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#555',
+  },
+  adjustmentButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  adjustmentInput: {
+    backgroundColor: 'rgba(60, 60, 60, 0.8)',
+    borderRadius: 6,
+    color: '#FFFFFF',
+    fontSize: 16,
+    textAlign: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    minWidth: 60,
+    height: 40,
+    marginHorizontal: 8,
+  },
+  resetButton: {
+    backgroundColor: 'rgba(200, 50, 50, 0.8)',
+    borderRadius: 8,
+    padding: 10,
+    alignSelf: 'flex-end',
+    marginTop: 12,
+    marginBottom: 16,
+  },
+  resetButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+  },
+  saveButton: {
+    backgroundColor: 'rgba(76, 175, 80, 0.8)',
+    borderRadius: 8,
+    paddingHorizontal: 40,
+    paddingVertical: 12,
+    alignSelf: 'center',
+    marginTop: 24,
+  },
+  // saveButtonText is already defined above
+  // Original styles for calculation method and high latitude rule buttons
   buttonGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
   },
-  methodButton: {
-    width: '48%',
-    padding: normalizeSize(15),
-    backgroundColor: '#2a2a2a',
-    borderRadius: normalizeSize(10),
-    marginBottom: normalizeSize(10),
-    alignItems: 'center',
-  },
   selectedMethodButton: {
     backgroundColor: '#4fc3f7',
-  },
-  methodButtonText: {
-    color: '#ffffff',
-    fontSize: scaleFontSize(16),
-    fontWeight: 'bold',
-    marginBottom: normalizeSize(5),
   },
   selectedMethodButtonText: {
     color: '#0f1419',
@@ -353,21 +668,6 @@ const styles = StyleSheet.create({
   },
   currentSettingsContainer: {
     marginTop: normalizeSize(10),
-  },
-  currentSettingRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: normalizeSize(10),
-  },
-  currentSettingLabel: {
-    color: '#a0a0a0',
-    fontSize: scaleFontSize(16),
-  },
-  currentSettingValue: {
-    color: '#81c784',
-    fontSize: scaleFontSize(16),
-    fontWeight: 'bold',
   },
 });
 

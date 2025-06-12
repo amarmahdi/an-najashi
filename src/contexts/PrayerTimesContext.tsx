@@ -39,6 +39,8 @@ interface PrayerTimesContextProps {
   prayerNames: string[];
   iqamahOffsets: number[];
   setIqamahOffsets: (offsets: number[]) => void;
+  prayerTimeAdjustments: number[];
+  setPrayerTimeAdjustments: (adjustments: number[]) => void;
   nextIqamah: string | null;
   nextIqamahName: string | null;
   remainingTime: string | null;
@@ -92,6 +94,9 @@ export const PrayerTimesProvider: FC<PropsWithChildren> = ({ children }) => {
   ]);
   const [iqamahOffsets, setIqamahOffsets] = useState<number[]>([
     30, 0, 30, 15, 5, 15,
+  ]);
+  const [prayerTimeAdjustments, setPrayerTimeAdjustments] = useState<number[]>([
+    0, 0, 0, 0, 0, 0,
   ]);
   const [nextIqamah, setNextIqamah] = useState<string | null>(null);
   const [nextIqamahName, setNextIqamahName] = useState<string | null>(null);
@@ -148,6 +153,17 @@ export const PrayerTimesProvider: FC<PropsWithChildren> = ({ children }) => {
       console.error('Error loading iqamah offsets:', err);
     }
   }, []);
+  
+  const loadSavedPrayerAdjustments = useCallback(async () => {
+    try {
+      const savedAdjustments = await AsyncStorage.getItem('@prayer_adjustments');
+      if (savedAdjustments) {
+        setPrayerTimeAdjustments(JSON.parse(savedAdjustments));
+      }
+    } catch (err) {
+      console.error('Error loading prayer time adjustments:', err);
+    }
+  }, []);
 
   // Save settings to AsyncStorage
   const saveMethodSettings = useCallback(async (newMethod: any) => {
@@ -163,6 +179,14 @@ export const PrayerTimesProvider: FC<PropsWithChildren> = ({ children }) => {
       await AsyncStorage.setItem('@iqamah_offsets', JSON.stringify(offsets));
     } catch (err) {
       console.error('Error saving iqamah offsets:', err);
+    }
+  }, []);
+  
+  const savePrayerAdjustments = useCallback(async (adjustments: number[]) => {
+    try {
+      await AsyncStorage.setItem('@prayer_adjustments', JSON.stringify(adjustments));
+    } catch (err) {
+      console.error('Error saving prayer time adjustments:', err);
     }
   }, []);
 
@@ -249,17 +273,28 @@ export const PrayerTimesProvider: FC<PropsWithChildren> = ({ children }) => {
       console.log('High Latitude Rule (UI):', method.highLatitudeRule);
       console.log('High Latitude Rule (adhan):', params.highLatitudeRule);
       console.log('Coordinates:', coordinates);
+      console.log('Prayer Time Adjustments:', prayerTimeAdjustments);
 
       const adhanPrayerTimes = new AdhanPrayerTimes(coordinates, new Date(), params);
 
-      const times = [
-        formatTime(adhanPrayerTimes.fajr),
-        formatTime(adhanPrayerTimes.sunrise),
-        formatTime(adhanPrayerTimes.dhuhr),
-        formatTime(adhanPrayerTimes.asr),
-        formatTime(adhanPrayerTimes.maghrib),
-        formatTime(adhanPrayerTimes.isha),
+      // Get the base prayer times
+      const baseTimes = [
+        adhanPrayerTimes.fajr,
+        adhanPrayerTimes.sunrise,
+        adhanPrayerTimes.dhuhr,
+        adhanPrayerTimes.asr,
+        adhanPrayerTimes.maghrib,
+        adhanPrayerTimes.isha,
       ];
+      
+      // Apply the prayer time adjustments
+      const adjustedTimes = baseTimes.map((time, index) => {
+        // Apply the adjustment in minutes
+        return new Date(time.getTime() + (prayerTimeAdjustments[index] || 0) * 60000);
+      });
+      
+      // Format the adjusted times
+      const times = adjustedTimes.map(time => formatTime(time));
 
       console.log('Prayer Times Calculated:', times);
       console.log('================================');
@@ -284,14 +319,15 @@ export const PrayerTimesProvider: FC<PropsWithChildren> = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [coordinates, method, iqamahOffsets, chooseMethod, formatTime, convertTimeStrToDate]);
+  }, [coordinates, method, iqamahOffsets, prayerTimeAdjustments, chooseMethod, formatTime, convertTimeStrToDate]);
 
   // Update prayer times settings
   const updatePrayerTimesSettings = useCallback(async () => {
     await saveMethodSettings(method);
     await saveIqamahOffsets(iqamahOffsets);
+    await savePrayerAdjustments(prayerTimeAdjustments);
     await initializePrayerTimes();
-  }, [method, iqamahOffsets, saveMethodSettings, saveIqamahOffsets, initializePrayerTimes]);
+  }, [method, iqamahOffsets, prayerTimeAdjustments, saveMethodSettings, saveIqamahOffsets, savePrayerAdjustments, initializePrayerTimes]);
 
   // Calculate remaining time until next iqamah
   const updateRemainingTime = useCallback((nextTime: string | null) => {
@@ -370,9 +406,10 @@ export const PrayerTimesProvider: FC<PropsWithChildren> = ({ children }) => {
     const loadSettings = async () => {
       await loadSavedMethodSettings();
       await loadSavedOffsets();
+      await loadSavedPrayerAdjustments();
     };
     loadSettings();
-  }, [loadSavedMethodSettings, loadSavedOffsets]);
+  }, [loadSavedMethodSettings, loadSavedOffsets, loadSavedPrayerAdjustments]);
 
   // Initialize prayer times when coordinates or method changes
   useEffect(() => {
@@ -447,6 +484,8 @@ export const PrayerTimesProvider: FC<PropsWithChildren> = ({ children }) => {
         prayerNames,
         iqamahOffsets,
         setIqamahOffsets,
+        prayerTimeAdjustments,
+        setPrayerTimeAdjustments,
         nextIqamah,
         nextIqamahName,
         remainingTime,
