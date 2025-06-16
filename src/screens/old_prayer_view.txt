@@ -1,0 +1,203 @@
+
+      <StatusBar hidden />
+      {/* Beautiful gradient background with dynamic colors */}
+      <View style={styles.backgroundGradient}>
+        <CustomGradient colors={smoothGradientColors} />
+
+        {/* Stars with static effect - only visible at night */}
+        {isNighttime && <StarBackground />}
+
+        {/* Clouds - only visible during daytime */}
+        {!isNighttime && <CloudBackground cloudDensity="medium" />}
+
+        {/* Sun or Moon based on time of day */}
+        <CelestialBody simulatedHour={null} />
+
+        {/* Time of day indicator */}
+        <TimeOfDayIndicator simulatedHour={null} />
+
+        {/* Decorative header strip */}
+        <View style={styles.headerStrip}>
+          <View style={styles.patternRow}>
+            {Array(20).fill(0).map((_, i) => (
+              <View key={`top-${i}`} style={[styles.patternSquare, {
+                width: normalizeSize(20),
+                height: normalizeSize(20),
+              }]} />
+            ))}
+          </View>
+        </View>
+
+        {/* Content Container with better spacing */}
+        <View style={styles.contentContainer}>
+          {/* Date Header with elegant styling */}
+          <ShadowCard
+            cornerRadius={15}
+            backgroundColor="#243a5e"
+            elevation={8}
+            shadowOpacity={0.5}
+            style={{
+              marginBottom: smallScreen ? normalizeSize(10) : normalizeSize(20),
+              marginTop: normalizeSize(20),
+              alignSelf: 'center',
+              padding: normalizeSize(10),
+            }}
+          >
+            <Text style={[styles.dateHeader, { fontSize: scaleFontSize(18) }]}>
+              {hijriDateFormatted} / {gregorianDateFormatted}
+            </Text>
+          </ShadowCard>
+
+          {/* Current Time Display */}
+          <View style={[styles.timeContainer, {
+            marginBottom: smallScreen ? normalizeSize(5) : normalizeSize(15),
+          }]}>
+            <Text style={[styles.timeLabel, { fontSize: scaleFontSize(24) }]}>
+              Current time
+            </Text>
+            <Text style={[styles.currentTime, {
+              fontSize: smallScreen ? scaleFontSize(60) : scaleFontSize(80),
+              marginBottom: normalizeSize(20),
+            }]}>
+              {formattedTime}
+            </Text>
+            <ShadowCard
+              cornerRadius={15}
+              backgroundColor="#0e86d5"
+              elevation={8}
+              shadowOpacity={0.5}
+              style={{
+                alignSelf: 'center',
+                padding: normalizeSize(10),
+              }}
+            >
+              <Text style={[styles.nextIqamah, { fontSize: scaleFontSize(18) }]}>
+                Next {nextIqamahName || 'Prayer'} IQAMAH {remainingTime || ''}
+              </Text>
+            </ShadowCard>
+          </View>
+
+          {/* Prayer Times Cards with better spacing */}
+          <View style={[styles.prayerTimesContainer, { paddingTop: normalizeSize(50) }]}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={[styles.prayerScrollContent, {
+                paddingHorizontal: normalizeSize(10),
+                paddingBottom: normalizeSize(20),
+              }]}
+            >
+              {prayerCards.map((prayer, index) => (
+                index === currentPrayerIndex ? (
+                  // Current prayer with animation and highlighting
+                  <Animated.View
+                    key={index}
+                    style={{
+                      transform: [{ scale: pulseAnim }],
+                      zIndex: 10,
+                      marginTop: normalizeSize(40),
+                      marginHorizontal: cardMargin,
+                    }}
+                  >
+                    <MosqueCard
+                      width={cardWidth}
+                      height={cardHeight + normalizeSize(20)}
+                      gradientColors={['#3885f7', '#0c7cd5', '#0a5ea3']}
+                      isHighlighted={true}
+                      style={{
+                        elevation: 15,
+                      }}
+                    >
+                      <View style={[styles.prayerCardContent]}>
+                        <Text style={[styles.currentPrayerName, { fontSize: scaleFontSize(16) }]}>
+                          {prayer.name}
+                        </Text>
+                        <Text style={[styles.currentPrayerTime, {
+                          fontSize: scaleFontSize(22),
+                          marginBottom: normalizeSize(10),
+                        }]}>
+                          {prayer.time}
+                        </Text>
+                        <Text style={[styles.currentIqamahLabel, { fontSize: scaleFontSize(14) }]}>
+                          IQAMAH
+                        </Text>
+                        <Text style={[styles.currentIqamahTime, { fontSize: scaleFontSize(18) }]}>
+                          {prayer.iqamah}
+                        </Text>
+                      </View>
+                    </MosqueCard>
+                  </Animated.View>
+                ) : (
+                  // Other prayers
+                  <View
+                    key={index}
+                    style={{
+                      marginTop: normalizeSize(40),
+                      marginHorizontal: cardMargin,
+                    }}
+                  >
+                    <MosqueCard
+                      width={cardWidth}
+                      height={cardHeight}
+                      gradientColors={['#243a5e', '#061a40', '#040f26']}
+                      style={{
+                        elevation: 8,
+                      }}
+                    >
+                      <View style={[styles.prayerCardContent]}>
+                        <Text style={[styles.prayerName, { fontSize: scaleFontSize(14) }]}>
+                          {prayer.name}
+                        </Text>
+                        <Text style={[styles.prayerTime, {
+                          fontSize: scaleFontSize(18),
+                          marginBottom: normalizeSize(10),
+                        }]}>
+                          {prayer.time}
+                        </Text>
+                        <Text style={[styles.iqamahLabel, { fontSize: scaleFontSize(12) }]}>
+                          IQAMAH
+                        </Text>
+                        <Text style={[styles.iqamahTime, { fontSize: scaleFontSize(16) }]}>
+                          {prayer.iqamah}
+                        </Text>
+                      </View>
+                    </MosqueCard>
+                  </View>
+                )
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* Settings Button */}
+          <View style={styles.settingsButtonContainer}>
+            <TouchableOpacity
+              style={styles.settingsButton}
+              onPress={() => setShowSettings(true)}
+              activeOpacity={0.7}
+              accessibilityLabel="Open prayer settings"
+            >
+              <Text style={styles.settingsButtonText}>⚙️ Prayer Settings</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Decorative footer strip */}
+        <View style={styles.footerStrip}>
+          <View style={styles.patternRow}>
+            {Array(20).fill(0).map((_, i) => (
+              <View key={`bottom-${i}`} style={[styles.patternSquare, {
+                width: normalizeSize(20),
+                height: normalizeSize(20),
+              }]} />
+            ))}
+          </View>
+        </View>
+
+        {/* Silence overlay - displays during adhan and before iqamah */}
+        <SilenceOverlay
+          visible={showSilence}
+          message={silenceMessage}
+          onDismiss={handleDismissSilence}
+          autoDismissTime={120000} // Auto dismiss after 2 minutes
+        />
+      </View>
