@@ -1,5 +1,3 @@
-/* eslint-disable no-trailing-spaces */
-
 import React, { useEffect } from 'react';
 import {
   View,
